@@ -1,0 +1,27 @@
+name: verify
+on: [push, pull_request]
+jobs:
+  game:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22.20.0'}
+      - uses: oven-sh/setup-bun@v2
+        with: {bun-version: '1.4.2'}
+      - run: bun install --frozen-lockfile
+      - run: npm run lint && npm test && npm run build && npm run package:reference
+      - run: npx playwright install --with-deps chromium
+      - run: |
+          npm run dev > /tmp/artillery-dev.log 2>&1 &
+          for attempt in $(seq 1 60); do curl -fsS http://localhost:2567/readyz && break; sleep 1; done
+          npm run test:e2e
+          npm run test:network
+      - run: docker compose -f deploy/compose.local.yaml build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidence-and-backend-reference
+          path: |
+            test-results
+            dist/downloads

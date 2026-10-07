@@ -1,0 +1,18 @@
+[Unit]
+Description=Artillery Lab pinned release
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/artillery/release.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/artillery
+ExecStart=/usr/bin/docker compose --env-file config.env --env-file release.env -f compose.yaml up -d --wait --wait-timeout 120
+ExecStop=/usr/bin/docker compose --env-file config.env --env-file release.env -f compose.yaml stop
+TimeoutStartSec=180
+TimeoutStopSec=50
+
+[Install]
+WantedBy=multi-user.target

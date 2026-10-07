@@ -1,0 +1,6 @@
+const url=process.env.BACKEND_URL??'http://localhost:8080';
+for(const path of ['/','/neon/','/paper/','/healthz','/readyz','/version','/web-version.json','/downloads/artillery-lab-backend-reference.zip']){const response=await fetch(url+path);if(!response.ok)throw Error(`${path}: ${response.status}`);console.log(`${path}: ${response.status}`);}
+const retired=await fetch(url+'/downloads/artillery-lab-starter.zip');if(retired.status!==404)throw Error('Retired starter is still publicly available');
+for(const path of ['/internal/metrics','/internal/drain','/metrics','/admin']){const response=await fetch(url+path);if(response.status!==404)throw Error(`Private path exposed: ${path} ${response.status}`);console.log(`${path}: denied`);}
+const backend=await fetch(url+'/version').then(r=>r.json()),web=await fetch(url+'/web-version.json').then(r=>r.json());if(backend.build!==web.build||backend.protocol!==web.protocol)throw Error('Mismatched frontend/backend release');
+const forbidden=await fetch(url+'/matchmake/create/battle',{method:'POST',headers:{Origin:'https://unapproved.invalid','Content-Type':'application/json'},body:'{"displayName":"Policy test"}'});if(forbidden.status!==403)throw Error('Origin restriction failed');console.log('Matched versions and Origin policy verified:',backend);

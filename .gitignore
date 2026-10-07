@@ -1,0 +1,10 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+.env
+deploy/gcloud/config.env
+deploy/gcloud/release*.env
+deploy/gcloud/release*.json
+*.log
+.pnpm-store/

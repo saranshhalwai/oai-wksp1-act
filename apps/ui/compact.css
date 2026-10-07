@@ -1,0 +1,15 @@
+@media (min-width: 801px) {
+  .weapon:disabled { opacity: .7; }
+  .app:has(.match-heading) .topbar { height: 65px; }
+  .match-heading { padding: 12px 0; }
+  .match-heading h1, .paper .match-heading h1 { font-size: 25px; }
+  .scoreboard { margin-bottom: 12px; }
+  .score-player, .paper .score-player { padding-top: 9px; padding-bottom: 9px; }
+  .battlefield:not(.preview .battlefield) canvas { height: clamp(250px, calc(100vh - 365px), 540px); object-fit: contain; }
+  .paper .battlefield:not(.preview .battlefield) canvas { height: clamp(235px, calc(100vh - 450px), 510px); background: #eee9db; }
+  .paper-deck { margin-top: 16px; }
+  .paper .controls { padding: 12px 16px; gap: 9px; }
+  .paper .control-hint { line-height: 1.4; }
+  .neon .controls { gap: 12px; }
+  .neon .aim-controls input[type=number] { font-size: 29px; }
+}

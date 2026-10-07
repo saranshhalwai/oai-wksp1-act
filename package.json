@@ -1,0 +1,20 @@
+{
+  "name": "artillery-lab", "private": true, "version": "1.0.0", "type": "module",
+  "packageManager": "bun@1.4.2", "workspaces": ["apps/*", "packages/*"], "engines": { "node": ">=22.20.0 <25" },
+  "scripts": {
+    "dev": "node tools/dev.mjs", "build": "node tools/build.mjs", "start": "node dist/server/index.js",
+    "typecheck": "tsc --noEmit", "lint": "npm run typecheck && node tools/check.mjs",
+    "test": "node tools/build.mjs --server-only && vitest run", "test:unit": "vitest run tests/unit", "test:integration": "node tools/build.mjs --server-only && vitest run tests/integration",
+    "test:e2e": "playwright test", "test:network": "tsx tools/network-test/index.ts",
+    "test:load": "tsx tools/load-test/index.ts", "package:reference": "node tools/package-reference/index.mjs"
+  },
+  "dependencies": {
+    "@colyseus/core": "0.18.18", "@colyseus/schema": "5.0.36", "@colyseus/sdk": "0.18.5",
+    "@colyseus/ws-transport": "0.18.4", "express": "5.1.0", "react": "19.3.0", "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0", "@types/express": "5.0.3", "@types/node": "22.18.6",
+    "@types/react": "19.2.2", "@types/react-dom": "19.2.2", "esbuild": "0.25.10",
+    "tsx": "4.20.6", "typescript": "5.9.3", "vite": "7.3.7", "vitest": "3.2.7", "tsup": "8.5.0"
+  }
+}

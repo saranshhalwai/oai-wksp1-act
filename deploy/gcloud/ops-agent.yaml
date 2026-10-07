@@ -1,0 +1,29 @@
+logging:
+  receivers:
+    artillery:
+      type: files
+      include_paths: [/var/log/artillery/game.jsonl]
+  processors:
+    artillery_json:
+      type: parse_json
+      time_key: timestamp
+      time_format: "%Y-%m-%dT%H:%M:%S.%LZ"
+    artillery_severity:
+      type: modify_fields
+      fields:
+        severity:
+          move_from: jsonPayload.severity
+  service:
+    pipelines:
+      artillery:
+        receivers: [artillery]
+        processors: [artillery_json, artillery_severity]
+metrics:
+  receivers:
+    hostmetrics:
+      type: hostmetrics
+      collection_interval: 60s
+  service:
+    pipelines:
+      default_pipeline:
+        receivers: [hostmetrics]

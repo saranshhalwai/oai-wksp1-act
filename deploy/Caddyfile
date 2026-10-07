@@ -1,0 +1,30 @@
+{
+  email {$ACME_EMAIL}
+  admin off
+}
+{$GAME_DOMAIN} {
+  encode zstd gzip
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+    X-Frame-Options DENY
+  }
+  @private path /internal /internal/* /metrics /metrics/* /admin /admin/*
+  handle @private {
+    respond 404
+  }
+  handle /downloads/artillery-lab-starter.zip {
+    respond 404
+  }
+  @static path / /neon /neon/* /paper /paper/* /downloads/* /web-version.json
+  handle @static {
+    root * /srv
+    file_server
+  }
+  handle {
+    reverse_proxy game:2567
+  }
+}
+http://127.0.0.1:8081 {
+  respond /healthz 200
+}

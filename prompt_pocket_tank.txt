@@ -1,0 +1,434 @@
+POCKET TANKS–STYLE WORKSHOP: GOOGLE CLOUD IMPLEMENTATION PLAN AND CODEX PROMPT
+WORKSHOP SCOPE UPDATE (8 October 2026): The user's later instructions supersede the SDK/starter distribution requirements below. The host provides only a deployed backend URL, backend documentation and reference data. Attendees create their own frontend and game connection logic from scratch. No Artillery client SDK, frontend starter/template or runnable local backend is supplied. Only attendee frontends run locally. Neon/Paper and their shared client remain host demos/internal implementation. Current handoff: docs/PARTICIPANT_BRIEF.md, docs/BACKEND_CONNECTION.md and the backend reference ZIP. The original specification below is retained as historical context.
+Prepared: 7 October 2026
+Deployment revision: Google Cloud Compute Engine, Artifact Registry, HTTPS/WSS and Cloud Monitoring.
+
+HOW TO USE
+Paste the complete section between START PROMPT and END PROMPT into Codex in an empty repository. This is the host's preparation project, completed and rehearsed before the 30–45-minute participant activity. It produces a Google Cloud deployment-ready game, two polished example frontends, and a standalone participant starter. If work has already started from the earlier prompt, treat this as an updated specification: inspect the repository and preserve completed gameplay/frontend work while updating deployment and its tests.
+
+Scope: an original workshop game based on Pocket Tanks' recognizable artillery gameplay: two tanks, alternating shots, angle/power controls, limited weapons, scored hits, and destructible terrain. The numerical rules below are our explicit workshop design, not claims about the commercial game's exact rules. Use original branding and assets. Working title: Artillery Lab. Do not connect to or claim compatibility with the commercial Pocket Tanks service.
+
+START PROMPT
+
+Build Artillery Lab, a complete 1v1 multiplayer artillery game for a ChatGPT/Codex frontend workshop. Implement it end to end: authoritative backend, game physics and destructible terrain, a shared renderer-independent client SDK, two polished and visually distinct frontends, a plain participant starter, tests, Google Cloud deployment configuration, and workshop documentation. The target is one Google Compute Engine VM using Docker Compose; section 13 is the authoritative deployment specification. Do not stop at scaffolding, a mockup, or a proposal. Work through the milestones and verify each gate.
+
+1. OUTCOME AND PROJECT BOUNDARIES
+
+The host prepares and deploys one backend. Attendees receive the fixed client SDK and a working starter; they have 30–45 minutes to design their own frontend. Two entirely different frontends must play the same room, using the same tank locations, terrain, ammunition, turn order, trajectories, impacts, scores and results.
+
+The central demo must work: a player using Neon Siege creates a room, a player using Paper Battalion joins the code, and they complete a match together. Both see the same physical events rendered in different art styles.
+
+Deliver:
+- Authoritative backend with room codes, legal action validation and reconnect support.
+- Deterministic server-side projectile simulation and a terrain engine.
+- Client SDK for connection, local aim controls, command acknowledgments, synchronized shot playback, terrain versioning and recovery.
+- Neon Siege: polished sci-fi frontend with its own renderer and UI composition.
+- Paper Battalion: polished illustrated tabletop frontend with a separate renderer and UI composition.
+- Plain participant starter, standalone ZIP, fixtures, practice bot and participant instructions.
+- Deployment/runbook, automated tests, screenshot inspection, latency and load-test tools.
+
+This is a human-played, turn-based artillery game. Do not add an LLM dependency to the application or require AI API keys. Automated aiming is permitted only for the host's marked practice bot. Defer accounts, payment, chat, public rankings, spectators, asynchronous multi-day matches, 3D rendering, public weapon creation and a large weapon shop.
+
+2. TECHNICAL STACK AND REPOSITORY
+
+Use TypeScript, a supported Node.js LTS runtime, pnpm workspaces, Colyseus for room lifecycle/transport/state synchronization, React + Vite for UI shells, and Canvas 2D for the battlefield. Use CSS/SVG for UI assets and Web Audio for lightweight synthesized effects. Use Vitest for pure/integration tests and Playwright for browser E2E. Use a Node worker-thread pool for bounded shot simulation jobs so simultaneous firing does not block room connections.
+
+Check actual installed versions and official APIs before coding. Pin mutually compatible packages, commit the lockfile and use frozen installs in CI. Do not invent framework methods or mix examples from incompatible versions. This game does not need the continuous movement prediction/rollback stack of a real-time arena game. Use room state plus reliable shot/event messages and an application-level command acknowledgment protocol.
+
+Suggested layout:
+  apps/server
+  apps/neon-client
+  apps/paper-client
+  apps/participant-starter
+  packages/protocol
+  packages/physics
+  packages/terrain
+  packages/client-sdk
+  tools/load-test
+  tools/package-starter
+  tests/integration
+  tests/e2e
+  deploy
+  deploy/gcloud
+  docs
+
+protocol: public schemas, commands/events, versions, weapon metadata and errors.
+physics: server/headless deterministic shot calculation; no DOM/network/wall-clock calls.
+terrain: canonical collision mask, explosion edits, checksums, versioned patches and sampling.
+client-sdk: hides Colyseus internals and exposes ordinary readonly TypeScript data plus rendering helpers.
+server: owns turn order, deadlines, validated actions, simulation job admission, ammunition, scores and match results.
+frontends: own presentation, controls, local previews allowed below, sound and animation styling.
+
+Bundle public shared helpers into the SDK distribution. Participant projects must not require server code or unpublished workspace packages. Keep the full shot-solving engine out of the public SDK surface; the workshop allows aiming controls, not an automatic shot solver.
+
+3. GAME MODES AND COMPLETE RULES
+
+Use score-based artillery. Tanks do not have health and are not eliminated by a hit. A hit scores points; destroying terrain changes the next shot's geometry. Do not accidentally turn this into a first-to-zero-health game.
+
+Two presets:
+- workshop-quick, the default: 5 shots per player, 20-second aiming deadline. Both players receive 2 Standard Shells, 1 Heavy Shell, 1 Scatter Volley, 1 Airburst Cluster.
+- standard: 10 shots per player, 30-second aiming deadline. Both receive 3 Standard Shells, 2 Heavy Shells, 2 Scatter Volleys, 2 Airburst Clusters and 1 Borer Shell.
+
+These are finite identical inventories for fairness and easy setup. No weapon draft in the required version. Both modes share the same backend/protocol. Select mode at room creation; freeze it once the second player joins.
+
+Each round consists of one shot by each player. A server-generated coin toss selects the first player, who remains first each round. A rematch swaps sides and first-player priority. Wind changes once at the start of each round and is identical for both shots in that round. Clearly display wind direction and magnitude.
+
+Turn sequence:
+1. Server announces active player, turn ID, round, wind and aiming deadline.
+2. Active player chooses angle, power and an available weapon, optionally uses one legal move, then fires.
+3. Server validates and locks the shot, consumes exactly one ammunition item and calculates the outcome.
+4. Both clients animate the same accepted shot timeline. All gameplay commands are locked during calculation/playback.
+5. At the server-controlled end of playback, commit the final terrain, tank positions and score together, then open the next turn.
+6. After both players use all allotted shots, highest total score wins. Equal scores produce a draw. Misses still consume shots/ammunition.
+
+Aim controls:
+- Global world angle: 0 degrees points right, 90 up, 180 left. Use integer degrees, inclusive range 0–180.
+- Power: integer 1–100. Canonical launch speed is 100 + 4*power world units/second.
+- Initial left-tank angle 45, right-tank angle 135, initial power 60. Retain each player's last accepted settings across their turns when valid; choose the first remaining weapon if the old selection is exhausted.
+- Slider, numeric controls, keyboard and pointer aiming must map to the same canonical angle/power values.
+- Basic preview is the barrel direction and a short fixed-length direction guide, independent of power. No full trajectory, landing marker, recommended settings or automated targeting in competitive mode. The client SDK must not expose a calculate-best-shot function.
+- This assistance restriction is a workshop rule, not cryptographic anti-cheat: public terrain/physics can be reverse-engineered. Server authority prevents forged outcomes, but cannot prove that a custom frontend has no aiming aid. Explain this in the host guide and use review/judging for compliance.
+
+Optional movement within the required rules:
+- Each player starts with 3 move tokens in quick mode or 6 in standard mode.
+- At most one move per turn, before firing. A move requests left/right, for up to 24 world units, never arbitrary coordinates.
+- Walk along terrain support in small swept increments; require at most 6 units of step-up and 12 units of step-down per increment, no hull penetration and no tank overlap or side-bound crossing.
+- Move the furthest legal distance; if zero, reject without consuming a token. Otherwise consume one token and mark the turn's move used.
+- Return accepted path/final position; animate it briefly. Fire is disabled until the server-controlled move phase finishes. The turn deadline continues running. If it expires during movement, complete the accepted move then perform the timeout action once.
+- Terrain collapse after explosions is a separate settling operation and can drop tanks farther than voluntary movement permits.
+
+Timeout: use the last server-confirmed aim/weapon, or the defaults if none, to fire automatically. Display this policy. A fire packet received at or after the server deadline loses to the timeout action; duplicate/racing commands must never create a second shot. The deadline uses server receive time, not an untrusted client timestamp.
+
+4. WORLD, TERRAIN AND TANK GEOMETRY
+
+World coordinates: 1024 units wide by 576 units high; origin top left; x right, y down. Fixed logical size independent of canvas/device resolution. Sky/background artwork has no collision.
+
+Terrain is a canonical 1024x576 one-bit occupancy mask: empty or solid, 1 world unit per cell, approximately 72 KiB when bit-packed. Use a typed bitset or a byte array internally if simpler, but use compact binary transport for full snapshots. Do not derive collision from the frontend's colored pixels or use different collision scales in different themes.
+
+Generate smooth seeded terrain with a continuous ground surface, no overhangs initially, ground heights roughly y=300..440. Flatten two initial support areas around x=140 and x=884. Keep spawn support height equal and use left-right symmetric initial terrain. Keep an indestructible 8-unit bedrock strip along the bottom. Seed and terrain version are server-owned.
+
+Use real mask subtraction for circular craters and drill cuts, including holes/overhangs. Terrain itself is static after removal: no expensive sand or floating-island collapse simulation. Visually make this behavior consistent. Tanks settle under gravity after all weapon impacts in a shot have resolved. Do not silently replace the mask with a heightfield that fills tunnels.
+
+Tank geometry: a canonical axis-aligned hull 28x16 units, barrel pivot derived from hull center/top by a shared transform, barrel length 20 units. Hull collider stays axis-aligned for this version; cosmetic suspension/tilt cannot change collision or muzzle origin. Provide exact hull/pivot/muzzle helpers in the SDK.
+
+Spawn and settling:
+- Tanks occupy clear space above supporting terrain. Falling performs swept hull collision against solid cells/bedrock and stops at first support; never teleport through a ledge or tunnel floor.
+- If initial hull placement overlaps terrain, fix generation rather than silently tolerating it.
+- No fall damage, crushing, tank death or burial/filling weapons in the required version.
+- Keep tanks within their side ranges: left center x=32..480, right center x=544..992. Voluntary movement cannot swap sides or cause overlap.
+- After final terrain edits, settle tanks downward using the same deterministic algorithm and include the settling animation in the shot timeline. Clamp work and assert no hull/terrain overlap or missing support in the committed result.
+
+For each committed state include terrainVersion and a stable checksum. Send a full terrain snapshot on first join/reconnect or mismatch; use versioned row-span patches between turns. Patches explicitly carry baseVersion, newVersion, bounds and checksum. Reject/request resync on gaps, invalid bounds or mismatch. Packet assembly must be bounded; never assume a text JSON array per cell is acceptable transport.
+
+5. PHYSICS, COLLISION AND WEAPONS
+
+Only the server calculates official impacts, scores and terrain edits. Clients render accepted samples/events. Never accept client-provided hit coordinates, damage, final tank positions, terrain patches or score.
+
+Projectile physics:
+- Fixed step dt=1/120 second; choose and document one integration method and stable update order.
+- Gravity 180 world units/second squared, downward. Wind is horizontal acceleration uniformly selected as an integer in [-25,25] for each round.
+- Launch from the shared muzzle origin using vx=speed*cos(angle), vy=-speed*sin(angle). Recompute muzzle from committed tank position and accepted angle.
+- Projectile collision radius 2 units. Sweep from previous to new position against the mask and tank hulls to prevent tunneling. Resolve earliest time of contact, with an explicit deterministic tie-break.
+- Ignore the firing tank only until the projectile has fully exited its hull/muzzle area; a later return can hit its owner. Handle muzzle blocked by terrain immediately and consistently.
+- x<0 or x>=1024 ends that projectile as a miss. Allow y<0 flight with an offscreen indicator; do not destroy at the top edge. Bound simulation at 12 seconds per shot and y<-2048; expire remaining projectiles without inventing an impact.
+- Use one seeded PRNG stream per shot where randomness is needed. Stable entity IDs/order and terrain edit order make runs repeatable on the server. Do not depend on bit-identical browser floating-point simulation for synchronization.
+
+Baseline weapon definitions (all metadata shared with clients):
+- Standard Shell: one projectile; explosion radius 36; max score contribution 40; terrain removal radius 30.
+- Heavy Shell: one projectile; explosion radius 54; max contribution 65; terrain removal radius 48. Same launch-speed formula for predictable power controls.
+- Scatter Volley: three projectiles launched simultaneously at angle offsets -6, 0, +6 degrees, clamped to [0,180]; each explosion radius 24, max contribution 18, crater radius 20. One ammunition use. Fixed stable ordering for same-step impacts.
+- Airburst Cluster: main projectile bursts once at the first apex crossing, before terrain contact if it reaches an apex. Spawn five children with fixed horizontal velocity offsets [-90,-45,0,45,90] added to parent vx and downward vy=40. Each child: explosion radius 22, max contribution 16, crater radius 18. If the main hits first, explode once with radius 24/max 20/crater 20 instead. No recursive splitting; at most five live children.
+- Borer Shell: on first terrain contact, cut a radius-6 corridor along the incoming direction for up to 60 units then explode with radius 34/max 35/crater 30. It stops at first tank contact, bedrock or world boundary. A direct tank contact before terrain detonates immediately. Drill progress is deterministic and represented as timed terrain edits; do not teleport an explosion past a tank.
+
+Keep these as original workshop weapons; do not reproduce a commercial game's weapon catalogue, names/art/audio or undocumented balance. Use a weapon-handler registry, with explicit bounded phases for flight, split/drill, impact and finish. No arbitrary runtime scripts supplied by clients.
+
+Scoring:
+- For each explosion and each tank, compute distance d from explosion center to the nearest point of the hull AABB at that moment.
+- contribution = round(maxScore * max(0, 1-d/explosionRadius)). Exact radius edge gives zero.
+- Add contributions against the opponent to the shooter; subtract contributions against the shooter from the shooter's score. Negative totals are allowed. The non-shooter's score does not change from being hit.
+- No separate direct-hit bonus; d=0 already gives maximum. No terrain shielding for explosion scoring in this version; surface/tank collision still controls where projectiles stop.
+- Sum all unique explosions in a shot, including multiple scatter/cluster hits. Explosion IDs ensure each contribution applies once.
+- Tanks remain stationary during projectile/impact resolution and settle only after all explosions and drill edits in the shot. This makes multi-impact scoring unambiguous.
+- Score events must show opponent points and self-penalty separately, plus net shot score. Do not present them as health damage.
+
+6. SERVER AUTHORITY AND SHOT TIMELINE
+
+Use a room state machine: waiting, countdown, aiming, moving, calculating, playback, finished, aborted. Transport connection state is separate. Both players ready triggers a 3-second countdown. Third-player joins are rejected; no mid-match replacement seat. Use random unambiguous six-character room codes with collision checks and expiration.
+
+During fire processing:
+1. Authenticate session/seat; check match ID, turn ID, phase, deadline, command ID, ammo, angle and power.
+2. Atomically mark that turn as fired, record the accepted command and reserve/debit one ammo. No other input can change this shot.
+3. Submit an immutable terrain/tank/config snapshot to a bounded worker pool. Inputs determine the shot; no client physics is used.
+4. Receive a bounded result containing sampled projectile tracks, ordered impact/split/drill/score/settle events, terrain edits, final checksum, final positions and score delta.
+5. Schedule playback with a server start timestamp about 150 ms ahead, then publish the accepted timeline. Packet preparation is off the hot path; chunk large data with IDs and bounded sizes if needed.
+6. Commit authoritative final state exactly once at playback end, then start the next turn. A browser's “animation complete” must never advance the room. Include enough data for late clients to fast-forward/resync.
+
+The state while playing an animation is not the same as the final committed next-turn state. Define this explicitly: authoritative committed state plus in-flight shot timeline, and a derived SDK render state at playback time. Apply each visual terrain edit at its impact time; do not reveal the complete crater at projectile launch. Transient score popups can follow events while committed totals advance at the defined boundary.
+
+Transmit server-computed trajectory samples at about 30 samples/second, including exact impact/split points and timestamps. Clients interpolate those for smooth 60 FPS animation; impacts use exact event positions, not an interpolated guessed collision. Logical physics continues at 120 Hz inside shot calculation. Rendering refresh rate, client speed and network broadcast rate do not determine physics.
+
+Bound worker job duration, active projectiles, simulation steps, events, queue length and payload size. On worker error/timeout, keep state consistent: abort the match with an explicit server error and no winner; never partially commit terrain or award a winner. Ignore late job results for a stale match/turn or aborted room. Catch and report failures; do not allow jobs to accumulate forever. Target p95 accepted-shot calculation under 100 ms on the tested deployment; report actual performance instead of claiming the target was reached.
+
+7. COMMANDS, STATE AND NETWORK RECOVERY
+
+Every mutating command includes protocol version, match/turn identity when applicable and a unique command ID. Provide authoritative ack/reject responses. Cache bounded command outcomes so retrying an accepted fire/move is idempotent. A conflicting payload with the same command ID is rejected. Old-turn requests cannot affect a new turn or rematch. Resolve session identity from the authenticated connection, not a client-supplied player ID.
+
+Public commands: create/join room, ready, setAim, selectWeapon, move left/right, fire, requestRematch, leave and resync. Merge aim and weapon draft changes in one versioned command if it simplifies ordering. A fire command must carry its final angle, power and weapon explicitly so it cannot race a throttled aim update.
+
+Public state: protocol/rules/physics versions, build ID, room/match/turn IDs, mode, phase, player IDs and slots, tank geometry/positions, inventories, scores, move tokens, active player, round, wind, aim deadline, accepted aim state, terrain version/checksum and current playback reference.
+
+Use event-driven WebSockets/WSS. HTTP may serve initial room lookup/bootstrap and static assets, never poll game state. Aim controls update immediately in the local UI; coalesce remote aim updates to at most 10 Hz. There is no need to send 60 network messages/second merely because a slider is animated at 60 FPS.
+
+When Fire is pressed, immediately show pending feedback and disable duplicate fire; start the official projectile only after acceptance/timeline availability. Do not fake a hit or alter terrain before server acceptance. Record input-to-ack and ack-to-animation separately.
+
+Clock/playback:
+- Estimate server time using a ping/echo exchange with monotonic local elapsed time; track uncertainty/smoothing. Do not assume matching wall clocks.
+- If a timeline arrives after its start time, seek to current playback time and apply missed terrain/event state without replaying old sounds.
+- On disconnect/tab suspension, resync snapshot, active timeline, playback time and committed terrain version. Discard stale drafts/pending effects; do not replay old commands automatically across turns.
+- Retain a bounded active/recent timeline until its recovery window ends. Reconstruct render state from a versioned base plus ordered edits, or send a current materialized snapshot with the correct playback cursor. Test this path in the middle of a cluster/drill shot.
+- If a client cannot assemble/validate a timeline, show synchronizing and obtain a snapshot. Never continue drawing guessed terrain.
+
+Reconnect policy:
+- Keep a temporary seat for 20 seconds using an unguessable reconnect credential, including support for same-tab refresh through SDK session storage.
+- Gameplay/playback and deadlines continue; an absent active player can time out into the defined automatic shot.
+- If one remains absent at grace expiry, forfeit to the connected player unless a final result already exists. If a shot is in progress, mark the pending terminal reason and finish that accepted shot before finalizing; do not open another turn.
+- If both remain absent beyond their grace periods, abort with no winner. An explicit leave triggers the same terminal policy immediately. Later timers/jobs cannot overwrite the result.
+- A transient reconnect before grace expiry clears that disconnect's pending forfeit. Distinguish it from an explicit leave. Specify/test races at grace and playback boundaries.
+- Server restart ends in-memory rooms. Do not claim session recovery across server restarts.
+
+Measure real application RTT p50/p95, a defined jitter/variability statistic, command acknowledgment delay, shot calculation time, playback skew estimate, resync count and client FPS. A 20–60 ms median RTT remains a desirable venue target, not a guaranteed requirement for game correctness. Verify usability at 150 and 300 ms RTT too: local aim stays immediate; firing acknowledgment waits longer, while the accepted animation remains smooth. Do not claim measured one-way latency by halving RTT.
+
+Validate finite values, bounded strings/messages, angle/power ranges, available weapon IDs and legal phases. Limit room creation and per-session command rates; allow aggregate campus traffic behind one public IP. Browser Origin checks supplement player/session validation; they are not authentication. Never log reconnect credentials or expose administrative secrets in frontend configuration.
+
+8. CLIENT SDK AND STARTER CONTRACT
+
+Expose a small typed API such as:
+- createArtilleryClient(config)
+- createRoom({displayName, mode}) / joinRoom({roomCode, displayName})
+- startPractice({displayName, mode}) / setReady(boolean)
+- setAim({angle, power}) / selectWeapon(weaponId)
+- move('left' | 'right') / fire()
+- getRenderState() / subscribe(listener) / subscribeEvents(listener)
+- getConnectionStats() / requestResync()
+- requestRematch() / leave() / destroy()
+
+These are desired wrapper operations, not presumed Colyseus method names. Implement the wrapper against verified framework APIs. fire() snapshots the current validated local draft and includes it in the final command. Expose pending/accepted/rejected feedback and legal actions in state. Keep drafts distinct from confirmed state.
+
+Provide helpers for world/screen transforms, terrain mask drawing/path extraction, tank hull and muzzle geometry, angle conversion and allowed direction guides. A participant may decorate the terrain surface but must render the actual solid boundary clearly. Provide read-only data and pure helpers; participant renderers must not mutate the SDK terrain mask.
+
+The SDK owns clock sync, timeline playback, event deduplication, command IDs, retries/resync and connection lifecycle. requestAnimationFrame only asks for render state. Avoid double timers/listeners under React StrictMode, provide unsubscriptions and idempotent destroy. Frame-rate differences must not advance turn state or duplicate effects.
+
+Document input units, phase meanings, legal actions, event timing, errors and teardown. Runtime backend URL is public config. No credential or server secret is required in participant code.
+
+9. FRONTEND A: NEON SIEGE
+
+Create an original futuristic artillery arena: midnight/navy background, cyan and amber tank identities, geometric armored vehicles, restrained neon outlines, layered alien hills and a clear luminous terrain edge. Keep non-colliding distant mountains visually distinct from the solid battlefield.
+
+Layout: score/round/turn timer at top; battlefield dominant; compact weapon dock at bottom; side aim console with angle dial, numeric angle, power bar, wind meter, move-token controls and a prominent Fire button. On smaller widths collapse the side console below the field.
+
+Effects: muzzle flash, short recoil, projectile trail, shockwave, crater debris, cluster split trails, drill sparks and score popups. Keep effects aligned with authoritative event timestamps, positions and radii. Bound particles and provide reduced motion. Use electronic synthesized audio after a user gesture.
+
+Polish all states: landing/create/join/practice, room code copy, readiness, countdown, your turn/opponent turn, pending shot, calculating, flight, impact, settling, reconnecting, synchronizing, results, rematch and errors. Never display an enabled Fire button on the opponent's turn.
+
+10. FRONTEND B: PAPER BATTALION
+
+Create an original illustrated tabletop artillery game: layered cut-paper hills, textured cream background, warm blue/red toy tanks with distinct silhouettes, hand-inked outlines, cartridge-style weapon cards, and an analog wind pennant. All local SVG/procedural assets should be self-contained and original; no copyrighted commercial screenshots, logos or sounds.
+
+Layout: a notebook-like score strip, a broad central diorama, bottom weapon cards and physical-looking angle/power gauges beside a large fire control. The visual composition and component arrangement must differ from Neon; write a separate Canvas renderer, not just a palette override.
+
+Effects: paper confetti debris, small ink puffs, simple comic-style score labels, hand-drawn flight trails and paper-layer craters clipped to the canonical mask. Decorative torn edges may extend only into cosmetic layers; they must not obscure the exact playable collision boundary. Keep the same tank hull, muzzle origin, trajectories and impact locations despite different silhouettes.
+
+Use the same angle convention and numerical values as Neon. Both show the full fixed battlefield with uniform scaling/letterboxing. Do not introduce a perspective projection or independent camera that hides required game information. Implement all networking/error/result states from Neon, with equally usable keyboard focus and contrast.
+
+11. SHARED UX, ASSETS AND PERFORMANCE
+
+- Desktop-first, usable at 1024x768, 1280x720 and 1920x1080. Keep numeric aim/power controls precise and keyboard-operable.
+- Prevent accidental fire while typing or adjusting controls; use a deliberate button/keyboard action. Ignore key repeat for fire and move.
+- Make local tank/active turn obvious through labels and shape as well as color. Weapon cards show ammo, a concise effect description and availability.
+- Keep a short shot history: weapon, round, opposing score contribution, self-penalty and net points. Authoritative data only.
+- Cache terrain render layers and invalidate only dirty regions. Clamp DPR and particle counts. No React state update per projectile per display frame.
+- Separate sound/particle events from state reconstruction so replay/reconnect does not burst old audio or duplicate effects.
+- Audio initializes after interaction; mute and reduced motion persist locally. Gameplay works if audio or decorative assets fail.
+- Target 60 FPS on ordinary laptops. Record the browser/device/test condition; do not claim universal performance.
+- Explain game objective, score penalties, wind, short direction guide, limited moves and timeout auto-fire in a concise first-match overlay.
+
+12. PRACTICE AND PARTICIPANT DISTRIBUTION
+
+Provide a server-controlled practice bot. It may use bounded sample-search over angle/power plus configurable random error, using legal inputs/ammo/move rules. Keep the search off the event loop and bound its work; an easy bot need not optimize every weapon. Practice is clearly marked and separate from human competition.
+
+Provide fixtures and shot timeline recordings for lobby, aiming, miss, direct hit, self-hit, crater, scatter, cluster, drilling, tank settling, turn transition, reconnect and draw. Fixture mode must be visibly labeled and use the same public types.
+
+The plain starter is a fully functioning third frontend with simple solid terrain, rectangle tanks, sliders, weapon selector, move/fire buttons and score/turn information. It must join either sample app's match, recover state and finish a game.
+
+Build a standalone ZIP containing source, package.json, its own lockfile, public config, README, a built self-contained SDK tarball/bundle, type definitions, fixtures and an AGENTS.md defining the edit surface. No workspace:* references or inaccessible private/unpublished dependencies. Test unpack/install/build/start outside the monorepo against the deployed-style backend.
+
+Create PARTICIPANT_CODEX_PROMPT instructing attendees to design a unique theme and renderer while retaining the SDK, canonical geometry, rules, fairness constraints and integration tests. Students modify layout, tank/terrain rendering, controls, animations, sound and accessibility. They do not change physics, weapons, time limits, terrain geometry or authority.
+
+Workshop plan: 5-minute cross-theme demonstration, 5-minute setup/theme choice, 15-minute build, 8-minute polish, 7-minute partner playtest and 5-minute showcase. Prepare accounts/tools/dependencies beforehand. Use quick mode during the event; standard mode is available for a longer demo.
+
+Eligibility: complete a real cross-frontend match and agree on final state/checksums. Score integration/reliability 30%, controls/readability 25%, visual identity 20%, animation/audio feedback 15%, accessibility/edge cases 10%. Gameplay winner and frontend winner are separate awards. Review for full trajectory/aim assistance if enforcing the human-control challenge.
+
+13. GOOGLE CLOUD DEPLOYMENT AND OPERATION
+
+13.1 Architecture and service choice
+
+Deploy one standard (non-Spot) Google Compute Engine VM running Docker Compose. Run exactly one authoritative Node/Colyseus game process, its bounded worker-thread pool, and a Caddy container that serves both built frontend bundles and reverse-proxies HTTP/WebSocket backend traffic. Store private application images in a regional Artifact Registry repository. Use Google Cloud Logging and Monitoring through an explicitly configured Ops Agent on the VM.
+
+Choose Compute Engine because room state is held in one process's memory. Cloud Run supports WebSockets, but requests have configured timeouts and session affinity is best-effort across connections. Autoscaling would require explicit authoritative room placement/shared coordination; a room code and sticky-session setting alone do not solve it. Do not implement Cloud Run, Cloud Functions, GKE, a managed instance group, Redis or a database for this baseline. Do not claim Cloud Run cannot run WebSockets. Scaling beyond this single process is future work, not an unimplemented promise in the handoff.
+
+Use one stable public origin, for example https://GAME_DOMAIN, with /neon/ and /paper/ for the sample clients. Use the actual compatible Colyseus HTTP/matchmaking and WebSocket routes; write and test the proxy configuration against them instead of assuming a guessed /ws path. A friendly landing page at / links both examples and the participant download. Participants can run localhost frontends or separately hosted frontends connecting directly to the same secure backend origin.
+
+Frontend build output is included in the web image. No separate Firebase Hosting, Cloud Storage website, CDN or external load balancer is required. These can be documented as future alternatives, but must not complicate the required setup.
+
+13.2 Defaults and explicit inputs
+
+Provide a commented deploy/gcloud/config.env.example using task-specific variables:
+- GCLOUD_PROJECT_ID: existing billing-enabled project; never invent an ID.
+- GCLOUD_REGION=asia-south1 (Mumbai).
+- GCLOUD_ZONE=asia-south1-a; verify machine/quota availability and make overridable.
+- GCLOUD_VM_NAME=pocket-tank-server.
+- GCLOUD_MACHINE_TYPE=c4d-standard-4 (4 vCPU, 15 GiB RAM); benchmark starting point, not a capacity guarantee.
+- GCLOUD_BOOT_DISK_GB=30, boot disk type pd-balanced, supported Ubuntu 24.04 LTS image with exact current image family/project verified by gcloud.
+- GCLOUD_NETWORK, GCLOUD_SUBNET, GCLOUD_ADDRESS_NAME and a region-consistent subnet CIDR for a dedicated custom VPC.
+- GCLOUD_ARTIFACT_REPOSITORY=pocket-tank and a dedicated runtime service-account name.
+- GAME_DOMAIN and ACME_EMAIL for DNS/TLS setup.
+- RELEASE_ID or commit SHA plus the resolved image digests.
+- ALLOWED_ORIGINS including the game origin and explicitly approved participant localhost/preview origins.
+- MAX_ROOMS, PHYSICS_WORKERS and queue limits; begin with one physics worker on the quad-vCPU VM, then measure before increasing.
+
+Compare actual application RTT from the workshop venue to asia-south1 (Mumbai) and asia-south2 (Delhi) before freezing the region. A temporary second regional probe requires its own matching regional resources and should be cleaned up afterward. The 20–60 ms median RTT target is not guaranteed by selecting an Indian region. Keep the 150/300 ms client resilience tests.
+
+Target 50 rooms/100 players only after the load tests on the chosen VM pass. If insufficient, document a measured lower room cap or a larger VM configuration. Do not use a shared-core micro VM or Spot/preemptible instance as the default workshop host. The application does not need a GPU.
+
+13.3 Images, authentication and reproducible builds
+
+Produce multi-stage Dockerfiles for game-server and web-caddy, production compose configuration, .dockerignore, health checks and a complete release manifest tying both images to the same protocol/build version. Run the game process as a non-root user. Build before deploying, never run a frontend development server in production.
+
+Push immutable release images to REGION-docker.pkg.dev/PROJECT/REPOSITORY/IMAGE. Pin deployed images by digest; retain the previous release's digests for rollback. Build linux/amd64 images for the selected x86 VM even if the operator uses an ARM laptop. Cache dependencies but honor the lockfile.
+
+Primary build path: authenticated operator builds with Docker locally and pushes using the gcloud Docker credential helper. Supply the exact commands. Document that Cloud Shell may build small releases but must not be assumed to have unlimited disk/CPU/time. Optional Cloud Build support may be provided only with explicit service-account, staging bucket, logging and Artifact Registry IAM configuration; do not rely on historical broad default permissions or make Cloud Build mandatory.
+
+The VM pulls private images using its attached dedicated runtime service account and a verified Docker credential helper based on metadata-server credentials. Configure the helper for the OS user actually executing docker/compose, including the root context if sudo is used. Do not bake a developer login, service-account JSON key or access token into an image, startup script, repository or frontend.
+
+Give the VM service account Artifact Registry Reader on the specific repository, Logs Writer and Monitoring Metric Writer as needed. Configure the VM's cloud-platform OAuth scope with these restricted IAM roles; scopes alone do not grant access. The VM does not need project Editor, Owner, image-push privileges or permission to create infrastructure. Document operator provisioning permissions separately and check them during preflight. Use Secret Manager only if actual deployment secrets are introduced, with access scoped to those secrets; do not add it merely to store public URLs.
+
+13.4 Network, DNS, TLS and admin access
+
+Create a dedicated custom VPC/subnet and narrowly targeted firewall rules. Expose TCP 80 and 443 to workshop browsers; HTTP supports redirect and certificate issuance. Permit SSH on TCP 22 only through IAP's documented source range 35.235.240.0/20 with the appropriate operator IAM/OS Login setup. Do not create public 0.0.0.0/0 SSH access. Tag/target only the workshop VM, and verify no existing network rules unintentionally expose extra ports.
+
+Keep the game port, metrics, worker interfaces and admin controls on the private Compose network or localhost. Do not publish the game port on all VM interfaces. Explicitly deny proxy access to internal admin/metrics paths; possession of a browser room code must never provide server administration. Expose only minimal public health/version information.
+
+Reserve a regional static external IPv4 address and attach it to the VM. Configure a DNS A record for GAME_DOMAIN at the user's existing DNS provider; Cloud DNS is optional and requires actual zone/delegation configuration if used. Validate public resolution before certificate issuance. Do not create an AAAA record without a working IPv6 setup.
+
+Caddy terminates HTTPS and WSS, serves frontend assets and proxies backend traffic with WebSocket upgrades intact. Persist Caddy's certificate/config volumes across container recreation. Test browser trust and automatic certificate renewal prerequisites. The public frontend and SDK runtime config use the actual domain, with framework-appropriate URL schemes; never ship localhost backend URLs in production assets.
+
+A domain/subdomain with valid DNS is a prerequisite for this specified public Caddy TLS route. If not available, finish all configurations and local/container tests and identify that one remaining dependency. Use IAP/SSH tunneling for private smoke tests if useful; do not substitute untrusted self-signed certificates or tell participants to disable browser security. Do not silently change to a different hosting architecture.
+
+Configure HTTP CORS and WebSocket Origin policy explicitly for permitted participant origins. Origin checks are separate from session/action authorization. Use exact origins or deliberately validated preview-host rules; avoid naive string suffix matching. Account for different localhost ports and both sample paths sharing one origin.
+
+13.5 Provisioning and operations scripts
+
+Deliver deploy/gcloud/README.md, config.env.example, bootstrap-vm.sh, production compose/Caddy configuration, Ops Agent configuration and scripts with the following operations:
+- preflight.sh: verify gcloud/Docker tooling, current account, explicit project, billing/API status, IAM/quota, region/zone/machine, DNS inputs and required variables. Never silently switch to an unrelated project.
+- provision.sh: enable required services, create or validate the dedicated network/subnet, registry, runtime service account/role bindings, firewall rules, regional address and VM. Use explicit --project/--region/--zone flags. Make repeat runs safe; compare existing resource configuration and fail clearly on conflicts rather than overwriting unrelated resources.
+- build-push.sh: build/test both release images, authenticate/push to the regional registry, resolve digests and write a release manifest with build/protocol/rules versions.
+- deploy.sh: use gcloud compute ssh/scp with --tunnel-through-iap to transfer only release/config files, authenticate image pulls as the VM service account, pull digests and start Compose through a systemd-managed service. Verify readiness, proxy routes, TLS and a real two-client room/shot exchange. Keep scripts parameterized and do not log secrets.
+- status.sh and logs.sh: provide useful VM/container/worker/Cloud Logging diagnostics using explicit project/resource filters.
+- drain.sh and rollback.sh: stop new rooms, let active matches finish within a documented bound, deploy a matched pair of previous image digests and verify health/versions. Provide a deliberate force option for aborting active matches; do not pretend a restart preserves them.
+- stop.sh and cleanup.sh: operate only on labelled workshop-owned resources and show exactly what will be stopped/deleted. Cleanup requires an explicit execution flag and lists retained resources, disks, static addresses, registry images and any DNS resources; never delete an entire pre-existing project or shared network.
+
+Script instructions should use Bash compatible with Cloud Shell or WSL on Windows. Document Windows prerequisites without assuming the user's terminal is Bash. Quote variables correctly, use task-specific names, fail on missing inputs, and avoid piping secrets into logs. Include real runnable commands for the supported gcloud version, verified through help/docs; do not invent flags. The scripts and docs must agree on file paths, image names and service names.
+
+Install Docker Engine/Compose and the Ops Agent using verified supported instructions on the chosen OS. Bootstrap must be idempotent and bring up the pinned existing release after VM reboot without fetching a mutable latest image. Preserve Caddy volumes and host configuration. Set sensible restart policies and health checks; explain that Docker health status by itself does not automatically restart an unhealthy process. Validate reboot/service recovery during rehearsal, when no real match is active.
+
+13.6 Observability, capacity, cost and workshop release procedure
+
+Provide healthz, readyz and version endpoints plus private game metrics for rooms, players, event-loop delay, worker queue wait/utilization, shot calculation duration, errors, reconnects and outgoing bytes. Export host CPU/RAM/disk metrics with the Ops Agent. Explicitly configure application log collection from Docker's chosen logging driver or host log files; a Compose stdout log does not automatically arrive in Cloud Logging on a generic VM. Include JSON parsing, rotation/retention and a test query proving a tagged application log was ingested when deployment is available.
+
+Provide an uptime check and recommended alert configurations for endpoint failure, sustained CPU/memory/disk pressure, shot-job failures and increasing queue wait. Keep high-cardinality room/player IDs out of metric labels. Do not expose tokens in logs or public metrics. Supply example Cloud Logging queries for one release, room and error class and a clear path to local logs if ingestion is unavailable.
+
+Explain costs without hardcoded price promises: VM runtime, persistent disk, external IPv4, Artifact Registry storage, network egress, log ingestion/retention and optional Cloud DNS/Cloud Build. Include a current pricing-calculator procedure and a billing budget/alert setup guide. Budgets notify; they do not automatically cap spending. Stopping the VM does not remove disk, reserved IP or image-storage charges. Provide separate stop-versus-cleanup instructions and require review of remaining billable resources.
+
+Rehearsal sequence: production image build; provision; DNS/TLS; both sample clients complete a shared match over WSS; participant localhost/preview client connects; mid-shot reconnect; external latency test from campus; realistic load test from a separate client machine; collect app and host metrics; verify rollback/reboot between test matches. Do not run the load generator on the game VM when reporting its capacity. A same-region cloud client is useful for throughput but cannot establish venue RTT.
+
+Freeze the tested release before the workshop. Avoid automated redeploys or proxy reloads while matches are active. Graceful shutdown must stop admission, finish or explicitly abort work within a timeout and release workers. A single VM/process is a deliberate single point of failure; restart or VM loss ends in-memory matches. Disk snapshots and container restart policies do not preserve live JavaScript room state. Recovery means bringing back a healthy server so players can create new matches.
+
+Preparing this prompt/configuration does not itself authorize spending or publishing. In the later implementation session, honor any actual deployment authorization already given; otherwise finish and validate local work plus a concrete resource/configuration plan before the final deployment approval step. Never fabricate cloud credentials, project IDs, DNS ownership, live URLs, successful commands, monitored metrics or venue measurements.
+
+14. TESTS AND ACCEPTANCE CRITERIA
+
+Physics/terrain tests:
+- Seeded terrain determinism/symmetry, support and spawn clearance.
+- Angle convention, launch speed, no-wind symmetry, wind direction, fixed-step repeatability.
+- Swept thin-terrain/tank collision, blocked muzzle, shooter exit/re-entry, offscreen flight and lifetime bounds.
+- Circular crater/drill subtraction, unchanged bedrock, holes/overhangs retained, patch bounds/checksum and snapshot roundtrip.
+- Tank settling onto first support, no tunneling, safe voluntary step constraints and token use.
+- All weapon handlers: scatter one-ammo/multiple paths, cluster exactly one split/five children or early-hit fallback, drill stops correctly.
+- Explosion distance/falloff, self-penalties, negative scores, multiple hits and deduplication.
+- Bounded steps/events/projectiles and worker cancellation/error behavior.
+
+Server integration tests:
+- Actual room creation/join/readiness, turn alternation, both modes, ammo exhaustion, draw and rematch.
+- Out-of-turn fire, unavailable weapon, forged positions/scores/terrain, invalid numeric values and third-player rejection.
+- Duplicate fire, retries with same command ID, conflicting IDs/payloads, deadline race, stale aim updates, stale turn after rematch and stale worker completion.
+- Move/fire races, timeout during move, disconnect grace, explicit leave, both absent, recovery and final-result immutability.
+- Atomic commit of terrain/scores/positions and no dependence on client animation-complete messages.
+- State/version recovery on missing/corrupt terrain patches and bounded event history.
+
+Browser tests using separate contexts and the two actual frontends:
+- Neon creates, Paper joins, both ready, angle/power editing works, legal fire accepted once.
+- Exercise an impact/crater and score, multiple projectiles, terrain settling and next-turn controls; use deterministic test seeds and server-side test fixtures where needed.
+- Complete a quick match and rematch; assert equal authoritative score, tank position, inventory, phase and terrain checksum at settled boundaries. Do not require pixel-identical screenshots between themes.
+- Reconnect/refresh during flight, after a cluster split and before final commit. Both eventually converge without duplicate shots or stale effects.
+- Test full standard-mode weapon coverage headlessly, and include a browser drilling scenario.
+- Test production proxy routes and the standalone starter installed outside the monorepo against a sample client.
+- Test the Google Cloud production origin over HTTPS/WSS when deployment is authorized and available: both frontend subpaths, participant cross-origin access, certificate trust, room bootstrap, mid-shot reconnect and authoritative terrain agreement. Otherwise mark these cloud checks pending rather than substituting localhost results.
+- Save/inspect screenshots for lobby, aiming, projectile flight, crater/settling, reconnect and results at the target screen sizes. Fix unreadable values, clipped controls and misleading terrain geometry.
+
+Network tests:
+- Profiles around 20, 60, 150 and 300 ms RTT with explicit per-direction added delay; distinguish measured RTT from injected delay.
+- Include jitter bursts, late timeline arrival, mid-shot disconnect and tab suspension. Preserve reliable ordered WebSocket semantics in application shims; simulate packet loss below TCP if that tool is available.
+- Verify immediate local aim response, honest pending-fire feedback, smooth playback, bounded clock correction and identical final state. At high delay correctness must remain intact even when the animation starts late.
+- Test a deliberately slow renderer/client: it cannot delay the room or change physics. If it falls behind, recover to current state rather than queue unlimited animations.
+
+Load/performance tests:
+- Create realistic paired clients with actual aim/fire/turn activity. Warm up then run 50 concurrent matches for 15 minutes with rematches and room turnover. Include synchronized firing bursts with cluster/drill weapons to stress worker queues.
+- Report hardware, versions, duration, room count, memory trend, CPU, event-loop delay, calculation p50/p95/p99, command ack p50/p95, queue wait, bytes and errors.
+- Targets: p95 shot calculation under 100 ms excluding network and queue wait; no unbounded worker queue/timeline leak; responsive connections under firing bursts. Measure queue wait separately and set admission limits from observed performance.
+- If resources/time prevent the full run, report exactly what ran, mark the full capacity target unverified and supply a reproducible command. Local throughput tests do not establish venue ping or browser FPS.
+- Record the Google Cloud project/region/zone, VM type, image digests, worker count and separate load-generator location with deployed performance results. Check application logs/host metrics are actually ingested; verify game/admin ports are not public. Rehearse drain, rollback and VM reboot recovery outside active workshop matches.
+
+Commands must exist for dev, build, lint, typecheck, unit/integration/E2E tests, network profiles, load test, starter packaging and production startup. CI runs appropriate automated checks and builds. Never claim tests passed if only files were written.
+
+15. IMPLEMENTATION ORDER AND HANDOFF
+
+Milestone A: workspace, actual dependency verification, rules/types, seeded terrain, one deterministic shell and crater tests. Gate: headless shot outcome repeatable and terrain valid.
+Milestone B: authoritative room lifecycle and two plain clients exchanging real shots. Gate: full quick match with correct scores/terrain and duplicate-action protection.
+Milestone C: all weapons, movement/settling, worker pool, versioned terrain and synchronized SDK playback/reconnect. Gate: latency/recovery/weapon tests pass.
+Milestone D: Neon Siege and Paper Battalion fully implemented and visually inspected. Gate: cross-theme browser match finishes with matching final state.
+Milestone E: bot, fixtures, standalone starter ZIP, participant prompt and host materials. Gate: a clean extracted starter installs/builds and plays against either example.
+Milestone F: Google Cloud provisioning/deployment scripts, production container/proxy verification, authorized Compute Engine rehearsal, logging/monitoring, load measurements and venue rehearsal instructions. Gate: honest readiness report with measured and pending checks clearly separated; publish live URLs only after actual verification.
+
+Continue through milestones without asking permission for routine implementation choices. Solve the authoritative vertical slice before cosmetic extras. Keep a concise progress log and preserve scope.
+
+Required docs: README, ARCHITECTURE, GAME_RULES, PHYSICS_AND_TERRAIN, WEAPONS, SDK_REFERENCE, PROTOCOL, DEPLOYMENT_GCLOUD, GCLOUD_OPERATIONS, COST_AND_CLEANUP, LATENCY_TESTING, WORKSHOP_HOST_GUIDE, PARTICIPANT_BRIEF, PARTICIPANT_CODEX_PROMPT, ACCEPTANCE_CHECKLIST and TEST_REPORT. Include deploy/gcloud/README.md with exact operator commands and required inputs. Use precise examples and real runnable commands.
+
+Final response must provide what was built, actual versions, setup/run commands/local URLs, cross-theme match instructions, starter ZIP location, test and load results with environment/duration, visual checks, Google Cloud deployment status, selected region/VM/image digests, any verified public URLs, rollback/stop/cleanup commands, known limits and remaining external requirements. Distinguish deployment-ready configuration from an actually deployed game. Do not call it complete if frontends use fake results, terrain diverges, the starter cannot install independently, or the clients cannot finish a shared match.
+
+END PROMPT
+
+REFERENCE NOTES
+- Pocket Tanks official description: https://www.blitwise.com/pocket-tanks
+- Colyseus rooms and state synchronization: https://docs.colyseus.io/
+- WebSocket API: https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API
+- Caddy reverse proxy: https://caddyserver.com/docs/caddyfile/directives/reverse_proxy
+- Google Cloud Run WebSocket constraints: https://docs.cloud.google.com/run/docs/triggering/websockets
+- Compute Engine regions/zones: https://docs.cloud.google.com/compute/docs/regions-zones
+- Compute Engine machine families: https://docs.cloud.google.com/compute/docs/general-purpose-machines
+- Static external IP configuration: https://docs.cloud.google.com/compute/docs/ip-addresses/configure-static-external-ip-address
+- Artifact Registry on Compute Engine: https://docs.cloud.google.com/artifact-registry/docs/integrate-compute
+- Docker authentication: https://docs.cloud.google.com/artifact-registry/docs/docker/authentication
+- IAP TCP forwarding: https://docs.cloud.google.com/iap/docs/using-tcp-forwarding
+- Ops Agent configuration: https://docs.cloud.google.com/monitoring/agent/ops-agent/configuration
+
+The official Pocket Tanks description grounds the angle/power/weapon artillery concept. All numeric physics, weapons, timing, scoring formula, terrain representation and workshop presets in this prompt are proposed implementation requirements for this original workshop edition, not verified replicas of the commercial game's internals.

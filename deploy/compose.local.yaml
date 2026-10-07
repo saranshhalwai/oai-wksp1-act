@@ -1,0 +1,16 @@
+name: artillery-local
+services:
+  game:
+    build: {context: .., dockerfile: deploy/Dockerfile.server}
+    environment:
+      BUILD_ID: local-container
+      ALLOWED_ORIGINS: http://localhost:8080,http://localhost:5175,http://127.0.0.1:5175,http://localhost:5176
+    expose: ["2567"]
+  web:
+    build: {context: .., dockerfile: deploy/Dockerfile.web, args: {BUILD_ID: local-container}}
+    ports: ["127.0.0.1:8080:80"]
+    environment: {GAME_DOMAIN: ":80", ACME_EMAIL: "local@example.invalid"}
+    depends_on: [game]
+    volumes: ["local_caddy:/data"]
+volumes:
+  local_caddy:

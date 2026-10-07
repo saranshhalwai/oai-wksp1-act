@@ -1,0 +1,43 @@
+name: artillery-lab
+services:
+  game:
+    image: ${SERVER_IMAGE:?Use a release manifest with an immutable image digest}
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 40s
+    environment:
+      NODE_ENV: production
+      BUILD_ID: ${RELEASE_ID:?Missing release ID}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Missing origin allowlist}
+      MAX_ROOMS: ${MAX_ROOMS:-50}
+      PHYSICS_WORKERS: ${PHYSICS_WORKERS:-1}
+      WORKER_QUEUE_LIMIT: ${WORKER_QUEUE_LIMIT:-32}
+      LOG_DIR: /var/log/artillery
+    volumes:
+      - /var/log/artillery:/var/log/artillery
+    expose: ["2567"]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    logging:
+      driver: local
+      options: {max-size: "10m", max-file: "3"}
+  web:
+    image: ${WEB_IMAGE:?Use a release manifest with an immutable image digest}
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      GAME_DOMAIN: ${GAME_DOMAIN:?Missing domain}
+      ACME_EMAIL: ${ACME_EMAIL:?Missing ACME email}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      game: {condition: service_healthy}
+    logging:
+      driver: local
+      options: {max-size: "10m", max-file: "3"}
+volumes:
+  caddy_data:
+  caddy_config:

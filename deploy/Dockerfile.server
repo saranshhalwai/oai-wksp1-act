@@ -1,0 +1,16 @@
+FROM oven/bun:1.4.2 AS bun
+FROM node:22.20.0-bookworm-slim AS build
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+WORKDIR /app
+COPY . .
+RUN bun install --frozen-lockfile && npm run typecheck && npm test && node tools/build.mjs --server-only
+FROM node:22.20.0-bookworm-slim
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=2567
+WORKDIR /app
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist/server ./dist/server
+COPY --from=build --chown=node:node /app/package.json ./package.json
+USER node
+EXPOSE 2567
+HEALTHCHECK --interval=15s --timeout=3s --start-period=15s CMD node -e "fetch('http://127.0.0.1:2567/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["node", "dist/server/index.js"]

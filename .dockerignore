@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.codex
+.agents
+.aws
+test-results
+playwright-report
+deploy/gcloud/config.env
+deploy/gcloud/release*.env
+deploy/gcloud/release*.json
+*.log

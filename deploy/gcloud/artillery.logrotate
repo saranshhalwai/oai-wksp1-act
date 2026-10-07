@@ -1,0 +1,10 @@
+/var/log/artillery/game.jsonl {
+  daily
+  maxsize 20M
+  rotate 7
+  compress
+  missingok
+  notifempty
+  copytruncate
+  su 1000 1000
+}
