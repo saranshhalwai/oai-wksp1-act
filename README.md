@@ -61,6 +61,8 @@ docker compose -f deploy/compose.local.yaml down
 
 The public target is one Google Compute Engine VM and Caddy HTTPS/WSS. No cloud resources are created by building this project. Start with [the exact operator runbook](deploy/gcloud/README.md), then consult [deployment](docs/DEPLOYMENT_GCLOUD.md), [operations](docs/GCLOUD_OPERATIONS.md) and [cost/cleanup](docs/COST_AND_CLEANUP.md). Public deployment requires an authorized billing-enabled project, operator IAM and an owned DNS name.
 
+If public access will use Cloudflare Tunnel instead, use the separate [Tunnel deployment variant](deploy/CLOUDFLARE_TUNNEL.md); it uses a loopback-only HTTP origin and does not use the direct-public-IP Caddy setup above.
+
 Actual checks and limitations are recorded in [TEST_REPORT](docs/TEST_REPORT.md) and [ACCEPTANCE_CHECKLIST](docs/ACCEPTANCE_CHECKLIST.md). The full workshop capacity target is not established by a local smoke/load run.
 
 Read [GAME_RULES](docs/GAME_RULES.md), [ARCHITECTURE](docs/ARCHITECTURE.md), [BACKEND_CONNECTION](docs/BACKEND_CONNECTION.md), [PARTICIPANT_BRIEF](docs/PARTICIPANT_BRIEF.md) and [WORKSHOP_HOST_GUIDE](docs/WORKSHOP_HOST_GUIDE.md). [SDK_REFERENCE](docs/SDK_REFERENCE.md) documents host-demo internals only.

@@ -4,6 +4,7 @@ COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 ARG BUILD_ID=local
 ENV BUILD_ID=$BUILD_ID
+ARG CADDYFILE=deploy/Caddyfile
 RUN apt-get update && apt-get install -y --no-install-recommends zip unzip && rm -rf /var/lib/apt/lists/*
 COPY . .
 RUN bun install --frozen-lockfile && npm run build && npm run package:reference
@@ -13,5 +14,5 @@ COPY --from=build /app/dist/paper /srv/paper
 COPY --from=build /app/dist/downloads/artillery-lab-backend-reference.zip /srv/downloads/artillery-lab-backend-reference.zip
 COPY --from=build /app/dist/index.html /srv/index.html
 COPY --from=build /app/dist/version.json /srv/web-version.json
-COPY deploy/Caddyfile /etc/caddy/Caddyfile
+COPY ${CADDYFILE} /etc/caddy/Caddyfile
 HEALTHCHECK --interval=15s --timeout=3s CMD wget -q -O /dev/null http://127.0.0.1:8081/healthz || exit 1
