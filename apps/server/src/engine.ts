@@ -101,7 +101,7 @@ export class GameEngine {
     const s = this.state, now = this.now(); if (s.result) return;
     const unavailable = s.players.filter(p => !p.connected), expired = unavailable.filter(p => (this.absent.get(p.slot) ?? Infinity) <= now);
     const terminal = expired.length && (unavailable.length === 1 || expired.length === 2);
-    if (terminal && !['calculating', 'playback', 'moving'].includes(s.phase)) { if (s.players.length < 2) this.abort('Room left before match'); else if (unavailable.length === 2) this.abort('Both players disconnected'); else this.finish(1 - unavailable[0].slot, 'Opponent left or reconnect grace expired'); return; }
+    if (terminal && !['calculating', 'playback', 'moving'].includes(s.phase)) { if (s.phase === 'waiting' || s.phase === 'countdown') this.abort('Room disbanded: a player left before the match started. Create or join a new room.'); else if (unavailable.length === 2) this.abort('Both players disconnected'); else this.finish(1 - unavailable[0].slot, 'Opponent left or reconnect grace expired'); return; }
     if (s.phase === 'countdown' && now >= s.deadline) this.nextTurn();
     if (s.phase === 'moving' && s.movement && now >= s.movement.start + s.movement.duration) { const m = s.movement; Object.assign(s.tanks[m.slot], m.path.at(-1)); s.movement = null; s.phase = 'aiming'; this.publish(); this.tick(); return; }
     if (s.phase === 'aiming') {

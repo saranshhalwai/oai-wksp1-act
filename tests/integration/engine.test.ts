@@ -5,6 +5,28 @@ import { MODES, type Command, type Mode, type Weapon } from '../../packages/prot
 function setup(mode: Mode = 'workshop-quick') { let now = 1000; const e = new GameEngine({ code: 'ABCDEF', mode, seed: 4, now: () => now, countdownMs: 10, turnMs: 1000, graceMs: 200, playbackScale: .001, simulate: async i => simulateShot(i), publish: () => {} }); e.addPlayer('a', 'A'); e.addPlayer('b', 'B'); let id = 0; const cmd = (slot: number, type: Command['type'], data?: unknown, overrides: Partial<Command> = {}) => e.command(slot, { v: 1, id: `c${++id}`, matchId: e.state.matchId, turnId: e.state.turnId, type, data, ...overrides }); const advance = async (ms: number) => { now += ms; e.tick(); await Promise.resolve(); }; return { e, cmd, advance }; }
 async function started(mode?: Mode) { const h = setup(mode); h.cmd(0, 'ready', true); h.cmd(1, 'ready', true); await h.advance(11); return h; }
 describe('authoritative lifecycle', () => {
+  it.each(['waiting', 'countdown'])('disbands a %s room on explicit leave and rejects replacement seats', async phase => {
+    const { e, cmd, advance } = setup();
+    cmd(0, 'ready', true);
+    if (phase === 'countdown') cmd(1, 'ready', true);
+    expect(e.state.phase).toBe(phase);
+    expect(cmd(0, 'leave').ok).toBe(true);
+    expect(e.state.phase).toBe('aborted');
+    expect(e.state.result).toEqual({ winner: null, reason: expect.stringContaining('Room disbanded') });
+    expect(() => e.addPlayer('replacement', 'New player')).toThrow();
+    await advance(10000);
+    expect(e.state.players.every(p => p.shots === 0)).toBe(true);
+  });
+  it('keeps readiness visible through a temporary waiting-room disconnect', async () => {
+    const { e, cmd, advance } = setup();
+    cmd(0, 'ready', true);
+    expect(e.state.players.map(p => p.ready)).toEqual([true, false]);
+    e.disconnect(0); await advance(100); e.connect(0);
+    expect(e.state.phase).toBe('waiting');
+    expect(e.state.result).toBeNull();
+    expect(cmd(0, 'ready', false).ok).toBe(true);
+    expect(e.state.players[0].ready).toBe(false);
+  });
   it.each(['workshop-quick', 'standard'] as Mode[])('finishes %s with all weapons, atomic boundaries and rematch', async mode => { const { e, cmd, advance } = await started(mode); let first = e.state.active; const winds: number[] = []; for (let i = 0; i < MODES[mode].shots * 2; i++) { const s = e.state, slot = s.active, p = s.players[slot], before = s.checksum; expect(slot).toBe(i % 2 ? 1 - first : first); winds.push(s.wind); const weapon = (Object.keys(p.ammo) as Weapon[]).find(w => p.ammo[w] > 0)!; expect(cmd(slot, 'fire', { angle: slot ? 120 : 60, power: 55, weapon }).ok).toBe(true); expect(s.phase).toBe('calculating'); expect(s.checksum).toBe(before); await advance(0); expect(s.phase).toBe('playback'); expect(s.checksum).toBe(before); await advance(100); } expect(e.state.phase).toBe('finished'); expect(e.state.players.map(p => p.shots)).toEqual([MODES[mode].shots, MODES[mode].shots]); for (let i = 0; i < winds.length; i += 2) expect(winds[i]).toBe(winds[i + 1]); const oldFirstId = e.state.players[first].id, oldMatch = e.state.matchId; cmd(0, 'rematch'); cmd(1, 'rematch'); await advance(11); expect(e.state.matchId).not.toBe(oldMatch); expect(e.state.players[e.state.active].id).not.toBe(oldFirstId); expect(e.state.players[0].id).toBe('b'); });
   it('deduplicates commands, rejects conflicts, forgery and stale input', async () => { const { e, cmd, advance } = await started(); const slot = e.state.active, aim = { angle: 45, power: 60, weapon: 'standard' }; expect(cmd(1 - slot, 'fire', aim).ok).toBe(false); expect(cmd(slot, 'fire', { ...aim, power: Infinity }).ok).toBe(false); expect(cmd(slot, 'fire', { x: 123, score: 100 }).ok).toBe(false); const packet = { v: 1, id: 'same', matchId: e.state.matchId, turnId: e.state.turnId, type: 'fire' as const, data: aim }; const a = e.command(slot, packet); expect(e.command(slot, packet)).toEqual(a); expect(e.command(slot, { ...packet, data: { ...aim, power: 10 } }).ok).toBe(false); expect(e.state.players[slot].shots).toBe(1); await advance(0); await advance(100); expect(cmd(slot, 'fire', aim, { turnId: 1 }).ok).toBe(false); });
   it('timeout wins at the exact receive deadline and consumes one shot', async () => { const { e, cmd, advance } = await started(); const slot = e.state.active; await advance(1000); expect(cmd(slot, 'fire', e.state.players[slot].aim).ok).toBe(false); expect(e.state.players[slot].shots).toBe(1); });

@@ -8,3 +8,4 @@ deploy/gcloud/release*.env
 deploy/gcloud/release*.json
 *.log
 .pnpm-store/
+.local-tools/

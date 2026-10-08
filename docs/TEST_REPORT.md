@@ -2,7 +2,17 @@
 
 Handoff: 8 October 2026. The playable backend, internal host-demo client, two themes and deployment tooling are implemented. The attendee handoff now contains backend documentation and data only; attendees build from scratch and connect to the deployed backend. Public cloud deployment and the full workshop-capacity rehearsal are not completed.
 
-## Verified
+## Current Windows review (8 October 2026)
+
+- User live playtest: solo bot play worked. The user reported that the Ready overlay blocked the battlefield, lacked per-player readiness, and made leaving a room unclear.
+- Replaced that overlay in both themes with an inline two-seat readiness panel, a cancellable Ready button, and an always-visible leave/back-to-lobby action. Leaving waiting/countdown disbands the room without a winner. Old room codes show an actionable unavailable/disbanded message.
+- Fixed reference packaging on Windows (Node-based tsx invocation and native ZIP creation/inspection). Fixed the web image's missing `unzip` package. The documentation-only ZIP builds with 22 Markdown/JSON files.
+- Workspace-local Node 22.20.0 and Bun 1.4.2 were installed; global Node was not replaced. Frozen dependency install, lint/typecheck, 29 unit/integration tests, and production frontend/server build passed. The tests include waiting/countdown departure and temporary waiting-room recovery.
+- All five Chromium browser tests passed in 1.4 minutes: cross-theme quick match/rematch and flight refresh; target lobby sizes; cluster/drill recovery; two-player readiness/disband/stale-code handling; and host-only ready/cancel/exit. Screenshots of both new waiting-room panels were inspected. The user's repeat room playtest is pending. Earlier Linux measurements below are historical and are not measurements of this Windows machine.
+- The two waiting-room tests passed again after final transport cleanup (6.9 seconds); lint, build and reference packaging passed again. All four local TCP delay profiles converged with no errors: injected RTT 20/60/150/300 ms (10/30/75/150 ms per direction plus periodic 40 ms bursts), measured RTT approximately 32/75/171/308 ms. Current evidence: `test-results/network-report.json`. Backend readiness and both frontend URLs returned success after testing.
+- Docker is not installed on this machine. Container/proxy verification and public deployment remain unverified here.
+
+## Previous host verification (historical)
 
 - Updated handoff verification: `npm run lint`, `npm run build` and `npm run package:reference` passed. The new ZIP contains 22 Markdown/JSON files, with no executable assets or SDK. All internal Markdown links resolve and all 13 example terrain checksums validate. The built landing page links the reference ZIP; the old starter archive was moved outside `dist/downloads` and preserved under its reference build staging directory.
 - Default dev/build now includes only the backend and two host demos. Production image packaging copies only the named reference ZIP. These changes have not been deployed; existing running images require a rebuild/redeployment to expose the new handoff.
@@ -25,4 +35,4 @@ Measurements used Node 22.20.0, Bun 1.4.2 and an i9-13900HX Linux host with 32 l
 - Full tab suspension, packet loss, sustained slow rendering and comprehensive accessibility/device profiling remain rehearsal items. The delay harness preserves TCP reliability and does not simulate packet loss.
 - Terrain rendering caches a full mask layer per revision; dirty-region texture optimization is not implemented. FPS statistics are sampling estimates, not a hardware performance certification.
 
-Run commands and deployment prerequisites are in the root README and `deploy/gcloud/README.md`. There is no Git repository in this workspace, so no commit was created.
+Run commands and deployment prerequisites are in the root README and `deploy/gcloud/README.md`. This Windows workspace is a Git checkout; no commit was created during this review.

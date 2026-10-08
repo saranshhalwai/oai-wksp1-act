@@ -4,7 +4,7 @@ COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 ARG BUILD_ID=local
 ENV BUILD_ID=$BUILD_ID
-RUN apt-get update && apt-get install -y --no-install-recommends zip && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends zip unzip && rm -rf /var/lib/apt/lists/*
 COPY . .
 RUN bun install --frozen-lockfile && npm run build && npm run package:reference
 FROM caddy:2.10.2-alpine

@@ -17,7 +17,7 @@ if (!declarations.includes('export interface Timeline') || declarations.includes
 await writeFile(`${stage}/BACKEND_TYPES.md`, `# Backend data shapes\n\nGenerated from protocol v1. This is reference text, not an SDK or an importable package. Constants describe the server rules; implement your own client against these shapes. Snapshot envelopes and transport messages are documented in BACKEND_CONNECTION.md.\n\n\`\`\`ts\n${declarations}\`\`\`\n`);
 
 // Only generated JSON recordings are copied; the simulator and viewer stay with the host.
-execFileSync('node_modules/.bin/tsx', ['tools/fixtures.ts'], { stdio: 'inherit' });
+execFileSync(process.execPath, ['--import', 'tsx', 'tools/fixtures.ts'], { stdio: 'inherit' });
 await mkdir(`${stage}/examples`);
 const examples = ['lobby', 'aiming', 'miss', 'direct-hit', 'self-hit', 'crater', 'scatter', 'cluster', 'drilling', 'settling', 'transition', 'reconnect', 'draw'];
 for (const name of examples) await copyFile(`dist/fixtures/${name}.json`, `${stage}/examples/${name}.json`);
@@ -26,8 +26,25 @@ await writeFile(`${stage}/examples/README.md`, '# Recorded backend data\n\nThese
 await mkdir('dist/downloads', { recursive: true });
 // zip updates existing archives, so assemble a fresh one before replacing the download.
 const temporaryZip = `${stage}/reference.zip`;
-execFileSync('zip', ['-q', '-r', temporaryZip, 'README.md', ...docs, 'BACKEND_TYPES.md', 'examples'], { cwd: stage, stdio: 'inherit' });
-const entries = execFileSync('unzip', ['-Z1', temporaryZip], { encoding: 'utf8' }).trim().split('\n');
+let entries;
+if (process.platform === 'win32') {
+  const script = `
+    $ErrorActionPreference = 'Stop'
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($env:REFERENCE_STAGE, $env:REFERENCE_ZIP)
+    $archive = [System.IO.Compression.ZipFile]::OpenRead($env:REFERENCE_ZIP)
+    try { $archive.Entries | ForEach-Object { $_.FullName } } finally { $archive.Dispose() }
+  `;
+  // The destination is outside the source directory to avoid including itself.
+  const windowsZip = `${stage}.zip`;
+  entries = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+    env: { ...process.env, REFERENCE_STAGE: stage, REFERENCE_ZIP: windowsZip }, encoding: 'utf8',
+  }).trim().split(/\r?\n/).map(name => name.replaceAll('\\', '/'));
+  await rename(windowsZip, temporaryZip);
+} else {
+  execFileSync('zip', ['-q', '-r', temporaryZip, 'README.md', ...docs, 'BACKEND_TYPES.md', 'examples'], { cwd: stage, stdio: 'inherit' });
+  entries = execFileSync('unzip', ['-Z1', temporaryZip], { encoding: 'utf8' }).trim().split('\n');
+}
 if (entries.some(name => !name.endsWith('/') && !/\.(md|json)$/.test(name))) throw Error('Reference pack contains an executable asset');
 await rename(temporaryZip, resolve('dist/downloads/artillery-lab-backend-reference.zip'));
 

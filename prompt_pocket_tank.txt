@@ -432,3 +432,9 @@ REFERENCE NOTES
 - Ops Agent configuration: https://docs.cloud.google.com/monitoring/agent/ops-agent/configuration
 
 The official Pocket Tanks description grounds the angle/power/weapon artillery concept. All numeric physics, weapons, timing, scoring formula, terrain representation and workshop presets in this prompt are proposed implementation requirements for this original workshop edition, not verified replicas of the commercial game's internals.
+
+
+update:
+what will happen is that the host will provide the attendees with only backend url and its docs and the game concept.
+they will not be given anything related to the frontend. they have to make the full frontend themselves from scratch. they are also allowed to add any innovation to the game by their wish.
+different people might make different fronted, but each will run the on same given deployed backend link. i.e. same game will be played by different users simulatneously in different ui.

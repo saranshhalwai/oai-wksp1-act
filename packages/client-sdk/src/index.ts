@@ -101,7 +101,13 @@ export function createArtilleryClient(config: ClientConfig) {
   }
   return {
     createRoom: (options: { displayName: string; mode: Mode }) => join(() => transport.create('battle', options)),
-    joinRoom: (options: { roomCode: string; displayName: string }) => join(() => transport.joinById(options.roomCode.trim().toUpperCase(), { displayName: options.displayName })),
+    joinRoom: (options: { roomCode: string; displayName: string }) => join(async () => {
+      try { return await transport.joinById(options.roomCode.trim().toUpperCase(), { displayName: options.displayName }); }
+      catch (e) {
+        if ((e as { code?: number }).code === 522) throw Error('Room unavailable: it may have been disbanded, expired, or the code is incorrect. Create or join a new room.');
+        throw e;
+      }
+    }),
     startPractice: (options: { displayName: string; mode: Mode }) => join(() => transport.create('battle', { ...options, practice: true })),
     async restoreSession() { if (config.fixture) return; let token: string | null = null; try { token = sessionStorage.getItem(key); } catch { return; } if (token) { try { await join(() => transport.reconnect(token!)); } catch { clearSaved(); } } },
     setReady: (ready: boolean) => command('ready', ready), setAim, selectWeapon: (weapon: Weapon) => setAim({ weapon }),
@@ -110,7 +116,21 @@ export function createArtilleryClient(config: ClientConfig) {
     getRenderState, subscribe(fn: () => void) { listeners.add(fn); return () => { listeners.delete(fn); }; }, subscribeEvents(fn: (event: ShotEvent) => void) { events.add(fn); return () => { events.delete(fn); }; },
     getConnectionStats() { return { rttP50: quantile(rtts, .5), rttP95: quantile(rtts, .95), jitter: quantile(rtts, .95) - quantile(rtts, .5), ackP50: quantile(acks, .5), ackP95: quantile(acks, .95), ackToAnimation, clockUncertainty: uncertainty, playbackSkew: skew, resyncs, fps }; },
     requestResync, requestRematch: () => command('rematch'),
-    async leave() { clearSaved(); if (room) { await command('leave').catch(() => {}); if (connection !== 'offline') await room.leave(); } room = null; state = null; mask = visual = null; timeline = null; connection = 'offline'; notify(); },
+    async leave() {
+      const previous = room;
+      clearSaved(); clearPending();
+      // Release the UI immediately. A deliberate transport leave invokes the
+      // server's explicit-leave policy even if a command ack is unavailable.
+      room = null; state = null; mask = visual = null; timeline = null;
+      version = -1; turnKey = ''; me = -1; clockReady = false;
+      connection = 'offline'; error = ''; notify();
+      if (previous) {
+        previous.reconnection.enabled = false;
+        previous.removeAllListeners();
+        try { if (previous.connection?.isOpen) await previous.leave(); else previous.connection?.close(); }
+        finally { previous.serializer?.teardown(); }
+      }
+    },
     destroy() { if (destroyed) return; destroyed = true; clearInterval(heartbeat); clearTimeout(aimTimer); clearPending(); if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible); listeners.clear(); events.clear(); if (room) { room.removeAllListeners(); void room.leave(false); } },
   };
 }

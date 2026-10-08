@@ -13,3 +13,10 @@
   .neon .controls { gap: 12px; }
   .neon .aim-controls input[type=number] { font-size: 29px; }
 }
+.room-navigation{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;font-size:12px;color:var(--muted)}
+.room-navigation button{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:5px;padding:10px 14px}
+.waiting-room{display:grid;grid-template-columns:1fr minmax(240px,1fr) auto;align-items:center;gap:20px;padding:18px;margin-bottom:16px;background:var(--panel);border:1px solid var(--line);border-radius:7px}
+.waiting-room h2,.room-ended h2{font-size:18px;margin:0 0 8px}.waiting-room p,.room-ended p{font-size:12px;color:var(--muted);line-height:1.5;margin:0}
+.ready-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}.ready-list li{display:flex;justify-content:space-between;align-items:center;gap:14px;font-size:12px}.ready-list strong{overflow-wrap:anywhere}.ready-status{color:var(--muted);white-space:nowrap}.ready-status.is-ready{color:var(--accent);font-weight:700}
+.room-ended{padding:20px;margin-bottom:16px;border:1px solid var(--amber);background:var(--panel);border-radius:7px}.room-ended button{margin-top:14px}
+@media(max-width:800px){.waiting-room{grid-template-columns:1fr}.waiting-room .primary{justify-self:start}}

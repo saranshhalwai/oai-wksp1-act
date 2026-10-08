@@ -19,6 +19,17 @@ npm run dev
 
 Open Neon in one tab and Paper in another. Create a room, copy its six-character code, join from the other theme, and press Ready in both. Each player fires five times; hits add points and self-hits subtract points. Both players must request a rematch. Practice uses a clearly marked server bot.
 
+The waiting-room panel shows each player's readiness. You can cancel Ready or use **Leave room · Back to lobby** at any time. Leaving before the match starts disbands that room; the remaining player returns to the lobby to create/join another room. A refresh is a temporary disconnect and retains the reconnect grace.
+
+On this Windows checkout, the pinned tools are available locally without changing global Node. Start them from PowerShell with:
+
+```powershell
+$env:PATH = "$PWD\.local-tools\node_modules\node\bin;$PWD\.local-tools\node_modules\bun\bin;$env:PATH"
+npm run dev
+```
+
+The ignored `.local-tools` directory is machine-local, not part of the attendee handoff. A fresh checkout needs the Node/Bun prerequisites above. Reference ZIP packaging supports Windows PowerShell and Linux (`zip` and `unzip`).
+
 ```bash
 npm run typecheck
 npm run lint

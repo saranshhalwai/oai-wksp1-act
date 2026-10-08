@@ -10,3 +10,4 @@ deploy/gcloud/config.env
 deploy/gcloud/release*.env
 deploy/gcloud/release*.json
 *.log
+.local-tools/

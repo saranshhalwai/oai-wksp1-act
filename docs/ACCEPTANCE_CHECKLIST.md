@@ -10,8 +10,13 @@
 - [x] Documentation/data-only backend reference pack and from-scratch participant instructions.
 - [x] Unit/integration tests, browser checks, delay tests and a short 50-room local load run.
 - [x] Docker, Caddy, CI, Google Cloud operator scripts and workshop documentation.
+- [x] Windows reference ZIP packaging, 29 unit/integration tests and five browser tests; user verified bot play.
+- [x] Nonblocking waiting room with per-seat readiness, cancel-ready, visible exit, disband notification and old-code recovery.
 
 ## Outstanding gates
+
+- [ ] User repeat playtest of the updated waiting-room flow (local servers available).
+- [ ] Container validation on this Windows host (Docker is not installed).
 
 - [ ] Recheck the final Caddy private-route 404 fix after rebuilding.
 - [ ] Rehearse an independently built attendee frontend using only the reference pack against the deployed backend, including a complete match and reconnect.
