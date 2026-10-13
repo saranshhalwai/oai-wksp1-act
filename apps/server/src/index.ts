@@ -8,7 +8,8 @@ import { GameEngine } from './engine';
 import { WorkerPool } from './pool';
 import { MODES, VERSION, type Command, type Mode } from '../../../packages/protocol/src/index';
 import { pack } from '../../../packages/terrain/src/index';
-const origins = new Set((process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173,http://localhost:5174,http://localhost:5175,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175,http://localhost:8080').split(',').filter(Boolean));
+import { createOriginCheck } from './origins';
+const isAllowedOrigin = createOriginCheck(process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173,http://localhost:5174,http://localhost:5175,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175,http://localhost:8080');
 const pool = new WorkerPool(Number(process.env.PHYSICS_WORKERS ?? 1), Number(process.env.WORKER_QUEUE_LIMIT ?? 32));
 const rooms = new Map<string, BattleRoom>(); let draining = false, bytes = 0, reconnects = 0;
 const lag = monitorEventLoopDelay({ resolution: 20 }); lag.enable();
@@ -47,9 +48,9 @@ class BattleRoom extends Room<{ state: InstanceType<typeof PublicState> }> {
   onLeave(client: Client) { const slot = this.engine.state.players.findIndex(p => p.id === client.sessionId); if (slot >= 0 && this.engine.state.players[slot].connected) this.engine.disconnect(slot, true); }
   onDispose() { this.engine.abort('Room closed'); rooms.delete(this.roomId); log('room-closed', { room: this.roomId }); }
 }
-const transport = new WebSocketTransport({ maxPayload: 16384, verifyClient: (info: { origin: string }) => !info.origin || origins.has(info.origin) });
+const transport = new WebSocketTransport({ maxPayload: 16384, verifyClient: (info: { origin: string }) => !info.origin || isAllowedOrigin(info.origin) });
 const server = new Server({ transport, greet: false, gracefullyShutdown: false, express: app => {
-  app.use((req, res, next) => { const origin = req.headers.origin; if (origin && !origins.has(origin)) { res.status(403).json({ error: 'Origin not allowed' }); return; } if (origin) { res.setHeader('Access-Control-Allow-Origin', origin); res.setHeader('Vary', 'Origin'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization'); res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS'); } if (req.method === 'OPTIONS') { res.sendStatus(204); return; } next(); });
+  app.use((req, res, next) => { const origin = req.headers.origin; if (origin && !isAllowedOrigin(origin)) { res.status(403).json({ error: 'Origin not allowed' }); return; } if (origin) { res.setHeader('Access-Control-Allow-Origin', origin); res.setHeader('Vary', 'Origin'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization'); res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS'); } if (req.method === 'OPTIONS') { res.sendStatus(204); return; } next(); });
   let windowAt = Date.now(), creates = 0;
   app.use((req, res, next) => { if (req.method === 'POST' && req.path.includes('/create/')) { if (Date.now() - windowAt > 60000) { creates = 0; windowAt = Date.now(); } if (++creates > 300 || draining) { res.status(429).json({ error: 'Room creation temporarily limited' }); return; } } next(); });
   app.get('/healthz', (_req, res) => res.json({ ok: true }));
@@ -69,7 +70,7 @@ httpServer.removeAllListeners('request');
 let admissionWindow = Date.now(), admissions = 0;
 httpServer.on('request', (req, res) => {
   const origin = req.headers.origin;
-  if (origin && !origins.has(origin)) { res.writeHead(403, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'Origin not allowed' })); return; }
+  if (origin && !isAllowedOrigin(origin)) { res.writeHead(403, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'Origin not allowed' })); return; }
   if (Number(req.headers['content-length'] ?? 0) > 16384) { res.writeHead(413); res.end(); return; }
   if (req.method === 'POST' && /\/matchmake\/(create|joinOrCreate)\//.test(req.url ?? '')) {
     if (Date.now() - admissionWindow > 60000) { admissionWindow = Date.now(); admissions = 0; }

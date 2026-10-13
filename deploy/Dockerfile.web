@@ -4,11 +4,11 @@ COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 ARG BUILD_ID=local
 ENV BUILD_ID=$BUILD_ID
-ARG CADDYFILE=deploy/Caddyfile
 RUN apt-get update && apt-get install -y --no-install-recommends zip unzip && rm -rf /var/lib/apt/lists/*
 COPY . .
 RUN bun install --frozen-lockfile && npm run build && npm run package:reference
 FROM caddy:2.10.2-alpine
+ARG CADDYFILE=deploy/Caddyfile
 COPY --from=build /app/dist/neon /srv/neon
 COPY --from=build /app/dist/paper /srv/paper
 COPY --from=build /app/dist/downloads/artillery-lab-backend-reference.zip /srv/downloads/artillery-lab-backend-reference.zip

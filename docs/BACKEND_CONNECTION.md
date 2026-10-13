@@ -6,6 +6,8 @@ This is the integration contract for protocol/rules/physics version 1. The refer
 
 Use the HTTPS backend origin supplied by the host, with no path: `https://YOUR_HOST_DOMAIN`. Only your frontend runs locally. The host must allow its exact origin (scheme, hostname and port). Do not send cloud credentials or invent a backend API key. Check `GET /healthz`, `/readyz` and `/version`; readiness is 503 while room admission is draining.
 
+For frontends hosted on ChatGPT Sites, the host can opt in to `https://*.chatgpt.site` in `ALLOWED_ORIGINS`. This permits HTTPS Sites subdomains in both HTTP and WebSocket admission checks. It covers all Sites frontends; use exact origins instead when access should be limited to specific sites.
+
 The backend is Colyseus core 0.18.18, schema 5.0.36, using WebSockets. It is not a REST game API or a raw JSON WebSocket endpoint. Game message payloads below are carried inside Colyseus framing. A compatible general-purpose transport implementation is the publicly available `@colyseus/sdk@0.18.5`, which attendees may independently install. Despite that library's name, it is not the Artillery game SDK: it supplies no game state interpretation, terrain renderer, command manager or playback logic. No library is bundled in the reference pack.
 
 The operation names below describe that transport library's interface, checked against the host's pinned version. Framework reference: https://docs.colyseus.io/client/. Do not assume examples for other versions match this release.
