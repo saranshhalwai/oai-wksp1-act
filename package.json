@@ -1,5 +1,5 @@
 {
-  "name": "artillery-lab", "private": true, "version": "1.0.0", "type": "module",
+  "name": "artillery-lab", "private": true, "license": "Apache-2.0", "version": "1.0.0", "type": "module",
   "packageManager": "bun@1.4.2", "workspaces": ["apps/*", "packages/*"], "engines": { "node": ">=22.20.0 <25" },
   "scripts": {
     "dev": "node tools/dev.mjs", "build": "node tools/build.mjs", "start": "node dist/server/index.js",

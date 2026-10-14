@@ -11,3 +11,8 @@ deploy/gcloud/release*.env
 deploy/gcloud/release*.json
 *.log
 .local-tools/
+
+# Local secrets and self-hosting overrides
+.env.*
+!.env.example
+deploy/compose.lan.yaml

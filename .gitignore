@@ -9,3 +9,8 @@ deploy/gcloud/release*.json
 *.log
 .pnpm-store/
 .local-tools/
+
+# Local secrets and self-hosting overrides
+.env.*
+!.env.example
+deploy/compose.lan.yaml
